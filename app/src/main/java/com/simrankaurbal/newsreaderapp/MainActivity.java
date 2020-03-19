@@ -8,6 +8,9 @@ import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -65,10 +68,46 @@ public class MainActivity extends AppCompatActivity {
                     results += current;
                     data = inputStreamReader.read();
                 }
-                Log.i("UrlConnection",results);
+                //Log.i("UrlConnection",results);
+
+                // extracting numbers in json array
+                JSONArray jsonArray = new JSONArray(results);
+
+                // setting limit
+                int numberofitems = 20;
+                if (jsonArray.length() < 20) {
+                    numberofitems = jsonArray.length();
+                }
+                for (int i = 0; i < numberofitems; i++)
+                {
+                    String articleId = jsonArray.getString(i);
+
+                    url = new URL("https://hacker-news.firebaseio.com/v0/item/"+articleId+".json?print=pretty");
+                   //url = new URL("https://hacker-news.firebaseio.com/v0/item/8863.json?print=pretty");
+                    httpURLConnection = (HttpURLConnection) url.openConnection();
+                    inputStream = httpURLConnection.getInputStream();
+                    inputStreamReader = new InputStreamReader(inputStream);
+                    data = inputStreamReader.read();
+                    String articleInfo = "";
+                    while (data != -1){
+                        char current = (char) data;
+                        articleInfo += current;
+                        data = inputStreamReader.read();
+
+                    }
+                    Log.i("ArticleInfo", articleInfo);
+
+                  //  Log.i("JSONItem",jsonArray.getString(i));
+
+                }
+
+
+
             } catch (MalformedURLException e) {
                 e.printStackTrace();
             } catch (IOException e) {
+                e.printStackTrace();
+            } catch (JSONException e) {
                 e.printStackTrace();
             }
             return null;
