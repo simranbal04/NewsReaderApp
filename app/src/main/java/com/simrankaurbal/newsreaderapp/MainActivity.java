@@ -2,6 +2,9 @@ package com.simrankaurbal.newsreaderapp;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteStatement;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.util.Log;
@@ -10,6 +13,7 @@ import android.widget.ListView;
 
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,7 +26,10 @@ import java.util.ArrayList;
 public class MainActivity extends AppCompatActivity {
 
     ArrayList<String> titles = new ArrayList<>();
+    ArrayList<String> content = new ArrayList<>();
+
     ArrayAdapter arrayAdapter;
+    SQLiteDatabase articleDB;
 
 
     @Override
@@ -33,9 +40,15 @@ public class MainActivity extends AppCompatActivity {
         ListView listView = (ListView) findViewById(R.id.listview);
         arrayAdapter = new ArrayAdapter(this, android.R.layout.simple_list_item_1,titles);
         listView.setAdapter(arrayAdapter);
+
+        articleDB = this.openOrCreateDatabase("Articles",MODE_PRIVATE,null);
+        articleDB.execSQL("CREATE TABLE IF NOT EXISTS articles (id INTEGER PRIMARY KEY, articleid INTEGER, title VARCHAR, content VARCHAR)");
+
+        updateListview();
+
         DownloadTask downloadTask = new DownloadTask();
         try {
-            downloadTask.execute("https://hacker-news.firebaseio.com/v0/topstories.json?print=pretty");
+            //downloadTask.execute("https://hacker-news.firebaseio.com/v0/topstories.json?print=pretty");
 
         } catch (Exception e)
         {
@@ -45,6 +58,22 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    public void updateListview(){
+        Cursor cursor = articleDB.rawQuery("SELECT * FROM articles",null);
+        int contentIndex = cursor.getColumnIndex("content");
+        int titleIndex = cursor.getColumnIndex("title");
+        if (cursor.moveToNext()){
+            titles.clear();
+            content.clear();
+
+            do {
+                titles.add(cursor.getString(titleIndex));
+                content.add(cursor.getString(contentIndex));
+            } while (cursor.moveToNext());
+
+            arrayAdapter.notifyDataSetChanged();
+        }
+    }
 
     // content of url download
 
@@ -78,6 +107,9 @@ public class MainActivity extends AppCompatActivity {
                 if (jsonArray.length() < 20) {
                     numberofitems = jsonArray.length();
                 }
+
+                // instructions
+                articleDB.execSQL("DELETE FROM articles");
                 for (int i = 0; i < numberofitems; i++)
                 {
                     String articleId = jsonArray.getString(i);
@@ -95,7 +127,47 @@ public class MainActivity extends AppCompatActivity {
                         data = inputStreamReader.read();
 
                     }
-                    Log.i("ArticleInfo", articleInfo);
+
+                    JSONObject jsonObject = new JSONObject(articleInfo);
+                    Log.i("info",jsonObject.toString());
+
+                    if (!jsonObject.isNull("title") && !jsonObject.isNull("url") )
+                    {
+                        String articleTitle = jsonObject.getString("title");
+
+                        String articleUrl = jsonObject.getString("url");
+
+                        url = new URL(articleUrl);
+                        //url = new URL("https://hacker-news.firebaseio.com/v0/item/8863.json?print=pretty");
+                        httpURLConnection = (HttpURLConnection) url.openConnection();
+                        inputStream = httpURLConnection.getInputStream();
+                        inputStreamReader = new InputStreamReader(inputStream);
+                        data = inputStreamReader.read();
+                        String articleContent = "";
+                        while (data != -1){
+                            char current = (char) data;
+                            articleInfo += current;
+                            data = inputStreamReader.read();
+
+                        }
+                        Log.i("atriclecontent", articleContent);
+
+
+                        String sql = "INSERT INTO articles (articleid,title,content) VALUES(? , ? , ?)";
+                        SQLiteStatement sqLiteStatement = articleDB.compileStatement(sql);
+                        sqLiteStatement.bindString(1,articleId);
+                        sqLiteStatement.bindString(2,articleTitle);
+                        sqLiteStatement.bindString(3,articleContent);
+
+                        sqLiteStatement.execute();
+
+
+//                        Log.i("info",articleTitle + articleUrl);
+
+
+                    }
+
+                   // Log.i("ArticleInfo", articleInfo);
 
                   //  Log.i("JSONItem",jsonArray.getString(i));
 
@@ -112,6 +184,15 @@ public class MainActivity extends AppCompatActivity {
             }
             return null;
         }
+
+        @Override
+        protected void onPostExecute(String s) {
+            super.onPostExecute(s);
+
+            updateListview();
+        }
     }
+
+
 
 }
